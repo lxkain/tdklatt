@@ -1168,6 +1168,7 @@ if __name__ == '__main__':
     N = s.params["N_SAMP"]
     F0 = s.params["F0"]
     FF = np.asarray(s.params["FF"]).T
+    BW = np.asarray(s.params["BW"]).T
     AV = s.params["AV"]
     AH = s.params['AH']
 
@@ -1186,19 +1187,29 @@ if __name__ == '__main__':
     F0[:] = np.linspace(120, 70, N)  # a falling F0 contour
 
     # FF
-    target1 = np.r_[300, 1000, 2600]  # /b/
+    FF_target1 = np.r_[200, 1100, 2150]  # /b/
     #target2 = np.r_[280, 2250, 2750]  # /i/
-    target2 = np.r_[750, 1300, 2600]  # /A/
+    FF_target2 = np.r_[750, 1300, 2600]  # /A/
+
     if 0:  # linear transition
         xfade = np.linspace(1, 0, N)
     else:  # exponential transition
         n = np.arange(N)
         scaler = 20
         xfade = 2 / (1 + np.exp(scaler * n / (N-1)))
-    FF[:,:3] = np.outer(xfade, target1) + np.outer((1 - xfade), target2)
+    FF[:,:3] = np.outer(xfade, FF_target1) + np.outer((1 - xfade), FF_target2)
+
+    # BW
+    BW_target1 = np.r_[60, 110, 130]
+    BW_target2 = np.r_[130, 70, 160]
+    n = np.arange(N)
+    scaler = 1
+    xfade = 2 / (1 + np.exp(scaler * n / (N-1)))
+    BW[:,:3] = np.outer(xfade, BW_target1) + np.outer((1 - xfade), BW_target2)
 
     # synthesize
     s.params["FF"] = FF.T
+    s.params["BW"] = BW.T
     s.run()
     s.play()
     s.save('synth.wav')
