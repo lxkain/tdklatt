@@ -303,7 +303,8 @@ class KlattSynth(object):
         import simpleaudio as sa
 
         y = self._get_int16at16K()
-        sa.play_buffer(y, num_channels=1, bytes_per_sample=2, sample_rate=16_000)
+        h = sa.play_buffer(y, num_channels=1, bytes_per_sample=2, sample_rate=16_000)
+        h.wait_done()
 
     def save(self, path):
         from scipy.io.wavfile import write
@@ -1172,22 +1173,30 @@ if __name__ == '__main__':
     AV = s.params["AV"]
     AH = s.params['AH']
 
+    # earlier for voiced consonants
+
     # amplitude / voicing
     AV[:] = np.linspace(1, 0, N) ** 0.1 * 60
-    if 1:  # unvoiced consonant
-        Nv1 = 800  # start of unvoiced-voiced transition
-        Nv2 = 1000  # end of unvoiced-voiced transition
-        AV[:Nv1] = 0
-        AH[:Nv1] = 55
-        AV[Nv1:Nv2] = np.linspace(0, AV[Nv2], Nv2-Nv1)
-        AH[Nv1:Nv2] = np.linspace(55, 0, Nv2-Nv1)
-
+    if 1: # unvoiced consonants
+        trans_start = 500  # start of transition
+        trans_end = 600  # end of transition
+        AV[:trans_start] = 0
+        AH[:trans_start] = np.linspace(55, 45, trans_start)
+        AV[trans_start:trans_end] = np.linspace(0, AV[trans_end], trans_end - trans_start)
+        AH[trans_start:trans_end] = np.linspace(AH[trans_start-1], 0, trans_end - trans_start)
+    else:
+        trans_start = 100
+        trans_end = 150
 
     # F0
-    F0[:] = np.linspace(120, 70, N)  # a falling F0 contour
+    if 0: # flat
+        F0[:] = 106
+    else: # linearly falling
+        F0[:] = np.linspace(120, 70, N)  # a falling F0 contour
 
     # FF
-    FF_target1 = np.r_[200, 1100, 2150]  # /b/
+
+    FF_target1 = np.array({'b': [200, 1312, 2348], 'd': [200, 1772, 3026], 'g': [200, 2078, 2348]}['b'])
     #target2 = np.r_[280, 2250, 2750]  # /i/
     FF_target2 = np.r_[750, 1300, 2600]  # /A/
 
@@ -1195,8 +1204,10 @@ if __name__ == '__main__':
         xfade = np.linspace(1, 0, N)
     else:  # exponential transition
         n = np.arange(N)
-        scaler = 20
-        xfade = 2 / (1 + np.exp(scaler * n / (N-1)))
+        scaler = 50
+        #n0 = 0.050
+        xfade = 2 / (1 + np.exp(scaler * (n - trans_start) / (N-1)))
+        xfade[:trans_start] = 1
     FF[:,:3] = np.outer(xfade, FF_target1) + np.outer((1 - xfade), FF_target2)
 
     # BW
@@ -1214,21 +1225,21 @@ if __name__ == '__main__':
     s.play()
     s.save('synth.wav')
 
-    # visualize
-    t = np.arange(len(s.output)) / s.params['FS']
-    import matplotlib.pyplot as plt
-    ax = plt.subplot(211)
-    plt.plot(t, s.output)
-    plt.axis(ymin=-1, ymax=1)
-    plt.ylabel('amplitude')
-    plt.twinx()
-    plt.plot(t, AV, 'r', label='AV')
-    plt.plot(t, AH, 'g', label='AH')
-    plt.legend()
-    plt.subplot(212, sharex=ax)
-    plt.specgram(s.output, Fs=s.params['FS'])
-    plt.plot(t, FF, alpha=0.5)
-    plt.xlabel('time [s]')
-    plt.ylabel('frequency [Hz]')
-    plt.savefig('figure.pdf')
-    plt.show()
+    if 0: # visualize
+        t = np.arange(len(s.output)) / s.params['FS']
+        import matplotlib.pyplot as plt
+        ax = plt.subplot(211)
+        plt.plot(t, s.output)
+        plt.axis(ymin=-1, ymax=1)
+        plt.ylabel('amplitude')
+        plt.twinx()
+        plt.plot(t, AV, 'r', label='AV')
+        plt.plot(t, AH, 'g', label='AH')
+        plt.legend()
+        plt.subplot(212, sharex=ax)
+        plt.specgram(s.output, Fs=s.params['FS'])
+        plt.plot(t, FF, alpha=0.5)
+        plt.xlabel('time [s]')
+        plt.ylabel('frequency [Hz]')
+        plt.savefig('figure.pdf')
+        plt.show()
